@@ -7,6 +7,21 @@ import pandas as pd
 import numpy as np
 
 
+def checkStockCode(stock_code):
+    """ Check whether the stock code exists
+    
+    Parameters
+    ----------
+    stock_code : str
+        the stock code (ex. "005930")
+    """
+    url = f"https://finance.daum.net/quotes/A{stock_code}#home"
+    
+    html = requests.get(url)
+    html.raise_for_status()
+    
+    return "alert" not in html.text
+
 def getStockPrice(stock_code, period=250):
     """ Return DataFrame of the stock prices.
 
@@ -17,6 +32,9 @@ def getStockPrice(stock_code, period=250):
     period : int, default 250
         the number of stock prices
     """
+    if not checkStockCode(stock_code):
+        raise ValueError("Nonexistent stock code")
+    
     params = {
         'symbol': stock_code,
         'timeframe': 'day',
@@ -25,7 +43,8 @@ def getStockPrice(stock_code, period=250):
     }
     url = "https://fchart.stock.naver.com/sise.nhn"
 
-    html = requests.get(url, params=params)
+    html = requests.get(url, params)
+    html.raise_for_status()
 
     parser = BeautifulSoup(html.text, 'html.parser')
     items = parser.find_all('item')
@@ -56,6 +75,9 @@ def getFinancialInfo(stock_code):
     stock_code : str
         the stock code (ex. "005930")
     """
+    if not checkStockCode(stock_code):
+        raise ValueError("Nonexistent stock code")
+        
     params = {
         'cmp_cd': stock_code,
         'finGubun': "MAIN",
@@ -63,6 +85,7 @@ def getFinancialInfo(stock_code):
     url = "http://wisefn.finance.daum.net/v1/company/cF1001.aspx"
 
     html = requests.get(url, params)
+    html.raise_for_status()
 
     parser = BeautifulSoup(html.text, 'html.parser')
     form = parser.find(id='Form1')
@@ -93,12 +116,13 @@ def getFinancialInfo(stock_code):
     data = np.char.replace(change_fin_data_array[:, 1:], ',', '')
 
     financial = pd.DataFrame(data.T, index=periods, columns=labels)
-    financial = financial.apply(pd.to_numeric, axis=1)
+    financial = financial.apply(pd.to_numeric, axis=1, errors='coerce')
 
     return financial
 
 
 if __name__ == '__main__':
     stock_code = "005930"
+    
     print(getStockPrice(stock_code))
     print(getFinancialInfo(stock_code))

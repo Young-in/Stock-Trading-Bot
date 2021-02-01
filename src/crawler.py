@@ -2,6 +2,9 @@
 import requests
 from bs4 import BeautifulSoup
 
+import datetime
+import util
+
 # Libraries for data processing
 import pandas as pd
 import numpy as np
@@ -66,6 +69,47 @@ def getStockPrice(stock_code, period=250):
 
     return prices
 
+def getCurrentStockData(stock_code):
+    """
+    Return current data of requested company
+    
+    Parameters
+    ----------
+    stock_code : str
+        the stock code (ex. "005930")
+        
+    Return Value
+    ----------
+    DataFrame
+    ex)
+    requested_time	                    name	    price
+	2021-01-30 05:31:34.130440+09:00	삼성전자	82000
+    """
+    now = datetime.datetime.utcnow()
+    now = pd.to_datetime(now,format="%Y-%m-%d %H:%M:%S", errors='raise')
+    now_local = now.tz_localize('Asia/Seoul') #this part
+    
+    if not checkStockCode(stock_code):
+        raise ValueError("Nonexistent stock code")
+        
+    url = f"https://finance.naver.com/item/main.nhn?code={stock_code}"
+    html = requests.get(url)
+    html.raise_for_status()
+    
+    content = BeautifulSoup(html.content, 'html.parser')
+    
+    stock_div = content.find("div",{"class":"wrap_company"})
+    stock_name = stock_div.find("a").text
+
+    feed = content.find("p",{"class":"no_today"})
+    price = int(feed.find("span",{"class":"blind"}).text.replace(",",""))
+    
+    stock_data = pd.DataFrame([[now_local, stock_name, price]],
+                          columns=["requested_time","name","price"]).astype({
+                            "name":"object"
+                            'price':"int32"})
+    
+    return stock_data
 
 def getFinancialInfo(stock_code):
     """ Return DataFrame of the financial summary.

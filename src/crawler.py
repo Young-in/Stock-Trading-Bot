@@ -2,6 +2,9 @@
 import requests
 from bs4 import BeautifulSoup
 
+import datetime
+import util
+
 # Libraries for data processing
 import pandas as pd
 import numpy as np
@@ -66,6 +69,42 @@ def getStockPrice(stock_code, period=250):
 
     return prices
 
+def getCurrentStockData(stock_code, timezone="Asia/Seoul"):
+    """
+    Return current data of requested company
+    Parameters
+    ----------
+    stock_code : str
+        the stock code (ex. "005930")
+    Return Value
+    ----------
+    DataFrame
+    ex)
+    requested_time	                 name    price
+    2021-01-30 05:31:34.130440+09:00 삼성전자 82000
+    """
+    now_local = util.getLocalTime(timezone)
+    
+    if not checkStockCode(stock_code):
+        raise ValueError("Nonexistent stock code")
+    url = f"https://finance.naver.com/item/main.nhn?code={stock_code}"
+    html = requests.get(url)
+    html.raise_for_status()
+
+    content = BeautifulSoup(html.content, 'html.parser')
+    
+    stock_div = content.find("div",{"class":"wrap_company"})
+    stock_name = stock_div.find("a").text
+
+    feed = content.find("p",{"class":"no_today"})
+    price = int(feed.find("span",{"class":"blind"}).text.replace(",",""))
+    
+    stock_data = pd.DataFrame([[now_local, stock_name, price]],
+                          columns=["requested_time","stock_name","price"]).astype({
+                            "stock_name":"object",
+                            "price":"int64"})
+    
+    return stock_data
 
 def getFinancialInfo(stock_code):
     """ Return DataFrame of the financial summary.
@@ -119,10 +158,3 @@ def getFinancialInfo(stock_code):
     financial = financial.apply(pd.to_numeric, axis=1, errors='coerce')
 
     return financial
-
-
-if __name__ == '__main__':
-    stock_code = "005930"
-    
-    print(getStockPrice(stock_code))
-    print(getFinancialInfo(stock_code))

@@ -11,8 +11,7 @@ import re
 
 
 def loadFeeData(path="../data/fee/"):
-    """
-    Return recent trade fee data of NH
+    """Return recent trade fee data of NH
     Return value is dataframe with column
     (min max expression)
     
@@ -33,8 +32,7 @@ def loadFeeData(path="../data/fee/"):
     return fee_data
         
 def netPrice(trade_type, price, tax=0.003):
-    """
-    Return net price.
+    """Return net price.
     Net is amount of tax and fee.
     
     Parameters
@@ -60,8 +58,7 @@ def netPrice(trade_type, price, tax=0.003):
 
 
 def checkMarketOpened(now, area="Asia/Seoul"):
-    """
-    Return true if market is open, flase otherwise
+    """Return true if market is open, flase otherwise
     It only works well for korea market 
     
     Parameters
@@ -81,10 +78,9 @@ def checkMarketOpened(now, area="Asia/Seoul"):
 
 
 class History:
-    """
-    'History' class helps trading stocks and history file I/O.
+    """'History' class helps trading stocks and history file I/O.
     
-    The word 'data' is only used for dataframe with format like below.
+    The word 'data' is only used for dataframe with format like below in this class.
     ------------------------------------------------------------
         date code   name price quantity amount net balance
     0    ~    ~       ~    ~      ~       ~     ~     ~
@@ -121,10 +117,8 @@ class History:
         self.balance = 0
         self.stock_info, self.recent_trade_date, self.balance = self.getTradeStatus()
     
-    
     def readFile(self):
-        """
-        Read purchase history file and return contents of it.
+        """Read purchase history file and return contents of it.
         """
         if util.isFileExist(self.file_name):
             try:
@@ -139,10 +133,8 @@ class History:
         
         return history
     
-    
     def writeFile(self, data):
-        """
-        Write data to history file.
+        """Write data to history file.
         """
         if not util.isFileExist(self.file_name):
             raise FilenotFoundError("No History File : " + self.file_name)
@@ -152,10 +144,8 @@ class History:
         
         data.to_csv(self.file_name,mode='a',header=False,index=False)
         
-    
     def checkData(self,data):
-        """
-        Return true if data has right format else false.
+        """Return true if data has right format else false.
         """
         error_count = 0
         index = data.index[0]
@@ -186,10 +176,8 @@ class History:
         
         return False if error_count > 0 else True
         
-        
     def getTradeStatus(self, seed_money = 1000000):
-        """
-        Return informations for trade.
+        """Return informations for trade.
         This func is special(?) because it is used in instructor.
         Parameters
         ----------
@@ -198,6 +186,7 @@ class History:
         """
         history = self.readFile()
         if history.shape[0] > 0:
+            history["amount"] = history["price"] * history["quantity"]
             stock_info = history.groupby(["code","name"])[["quantity","amount"]].sum()
             stock_info = stock_info.reset_index().set_index("code")
             stock_info = stock_info[stock_info["quantity"]>0]
@@ -220,10 +209,8 @@ class History:
             })
         return stock_info, recent_date, recent_balance
     
-        
     def tradeData(self, trade_type, code, quantity, code_len=6):
-        """
-        Return data for trade.
+        """Return data for trade.
         Parameters
         ----------
         trade_type = bool
@@ -264,10 +251,8 @@ class History:
         trade_data = pd.DataFrame([data],columns=self.__columns).astype(dict(zip(self.__columns[self.__columns.index("code"):],self.__dtypes)))
         return trade_data
     
-    
     def depositData(self, money):
-        """
-        Return data for deposit
+        """Return data for deposit
         Only date and balance have value. Others are Na
         Parameters
         ----------
@@ -286,15 +271,17 @@ class History:
         
         return deposit_data
     
-    
-    def isBuyable(self, data):
-        """
-        Return true if user can buy stock else false
+    def isBuyable(self, data, market=True):
+        """Return true if user can buy stock else false
+        Parameters
+        ----------
+        market = bool
+            if true check if market is opened else false
         """
         error_count = 0
         index = data.index[0]
-        #if not checkMarketOpened(data.loc[index,"date"]):
-        #    error_count += 1
+        if not checkMarketOpened(data.loc[index,"date"]) and market:
+            error_count += 1
         if not self.checkData(data):
             error_count += 1
         else:
@@ -306,15 +293,40 @@ class History:
         
         return False if error_count > 0 else True
     
-    
-    def isSellale(self, data):
+    def isBuyable(self, code, quantity, market=True):
+        """Return true if user can buy stock else false
+        Parameters
+        ----------
+        code = string
+            stock code
+        quantity = int
+            number of stocks to buy
+        market = bool
+            if true check if market is opened else false
         """
-        Return true if user can sell stock else false
+        stock_data = crawler.getCurrentStockData(code)
+        price = stock_data.loc[stock_data.index[0],"price"]
+        error_count = 0
+        
+        if not checkMarketOpened(stock_data.loc[stock_data.index[0],"requested_time"]) and market:
+            error_count += 1
+        
+        if not self.balance - quantity * price > 0:
+            error_count += 1
+            
+        return False if error_count > 0 else True
+    
+    def isSellale(self, data, market=True):
+        """Return true if user can sell stock else false
+        Parameters
+        ----------
+        market = bool
+            if true check if market is opened else false
         """
         error_count = 0
         index = data.index[0]
-        #if not checkMarketOpened(data.loc[index,"date"]): #check if market is opened
-        #    error_count += 1
+        if not checkMarketOpened(data.loc[index,"date"]) and market: #check if market is opened
+            error_count += 1
         if not self.checkData(data):
             error_count += 1
         else:
@@ -327,13 +339,33 @@ class History:
                 if not self.stock_info.loc[data.loc[index,"code"],"quantity"] + data.loc[index,"quantity"] >= 0: #ambiguous issue
                     error_count += 1
                 
-            
         return False if error_count > 0 else True
     
+    def isSellable(self, code, quantity, market=True):
+        """Return true if user can sell stock else false
+        Parameters
+        ----------
+        code = string
+            stock code
+        quantity = int
+            number of stocks to sell
+        market = bool
+            if true check if market is opened else false
+        """
+        error_count = 0
+        if not checkMarketOpened(util.getLocalTime()) and market:
+            error_count += 1
+        
+        try:
+            if not self.stock_info.loc[code, "quantity"] - quantity >= 0:
+                error_count += 1
+        except KeyError:
+            error_count += 1
+        
+        return False if error_count > 0 else True
     
     def __updateStatus(self, data):
-        """
-        Update informations for trade.
+        """Update informations for trade.
         This func is private becuase it changes value of class variances.
         """
         if not len(data.index) == 1:
@@ -345,7 +377,9 @@ class History:
         index = data.index[0]
         code = data.loc[index,"code"]
         
-        if code in self.stock_info.index:
+        if not pd.notnull(data).all(axis=1).all():
+            pass
+        elif code in self.stock_info.index:
             new_quantity = self.stock_info.loc[code,"quantity"]+data.loc[index,"quantity"]
             self.stock_info.loc[code,"quantity"] = new_quantity
             data_amount = data.loc[index,"amount"] if data.loc[index,"quantity"] > 0 else -data.loc[index,"amount"]
@@ -361,37 +395,13 @@ class History:
         self.balance = data.loc[index,"balance"]
         self.recent_trade_date = data.loc[index,"date"] 
         
-    
     def updateStatus(self, data):
         self.__updateStatus(data)
         
-"""    
-h = History(78)
-print("=============================")
-print(h.stock_info)
-print(h.balance)
-print(h.recent_trade_date)
-"""
 '''
-b = h.tradeData(True,"005930",4)
-print(b)
-print(h.isBuyable(b))
-h.writeFile(b)
-h.updateStatus(b)
+h = History(78)
 print(h.stock_info)
 print(h.balance)
-print(h.recent_trade_date)
-s = h.tradeData(False,"005930",3)
-print(h.isSellale(s))
-h.writeFile(s)
-h.updateStatus(s)
-print(h.stock_info)
-print(h.balance)
-print(h.recent_trade_date)
-b1 = h.tradeData(True,"009830",6)
-h.writeFile(b1)
-h.updateStatus(b1)
-print(h.stock_info)
-print(h.balance)
-print(h.recent_trade_date)
+print(h.isBuyable("005930",15))
+print(h.isSellable("035720", 3, False))
 '''
